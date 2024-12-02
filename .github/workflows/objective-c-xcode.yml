@@ -1,0 +1,65 @@
+name: Xcode - Build and Analyze
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Build and Analyze
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Default Scheme
+        id: set_scheme
+        run: |
+          scheme_list=$(xcodebuild -list -json)
+          default=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.read)['project']['schemes'][0]")
+          if [ -z "$default" ]; then
+            echo "No schemes found."
+            exit 1
+          fi
+          echo "Using default scheme: $default"
+          echo "scheme=$default" >> $GITHUB_OUTPUT
+
+      - name: Install xcpretty
+        run: sudo gem install xcpretty
+
+      - name: Build
+        env:
+          SCHEME: ${{ steps.set_scheme.outputs.scheme }}
+          PROJECT_PATH: MicMuteApp.xcodeproj
+        run: |
+          set -e
+
+          if [ -z "$SCHEME" ]; then
+            echo "Scheme is not set"
+            exit 1
+          fi
+
+          if [ ! -d "$PROJECT_PATH" ]; then
+            echo "Project path $PROJECT_PATH does not exist"
+            exit 1
+          fi
+
+          echo "Building $PROJECT_PATH with scheme $SCHEME"
+
+          xcodebuild clean build analyze \
+            -scheme "$SCHEME" \
+            -project "$PROJECT_PATH" \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS=NO \
+            | xcpretty
+
+          # Capture the exit code from xcodebuild
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "Build failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
