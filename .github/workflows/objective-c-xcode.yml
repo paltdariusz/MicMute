@@ -40,12 +40,12 @@ jobs:
           fi
 
           # Find .xcworkspace or .xcodeproj
-          if [ -d *.xcworkspace ]; then
+          if ls *.xcworkspace 1> /dev/null 2>&1; then
             FILETYPE_PARAMETER="workspace"
-            FILE_TO_BUILD=$(find . -maxdepth 3 -type d -name "*.xcworkspace" | head -n 1)
-          elif [ -d *.xcodeproj ]; then
+            FILE_TO_BUILD=$(ls *.xcworkspace | head -n 1)
+          elif ls *.xcodeproj 1> /dev/null 2>&1; then
             FILETYPE_PARAMETER="project"
-            FILE_TO_BUILD=$(find . -maxdepth 3 -type d -name "*.xcodeproj" | head -n 1)
+            FILE_TO_BUILD=$(ls *.xcodeproj | head -n 1)
           else
             echo "No Xcode project or workspace found."
             exit 1
@@ -56,6 +56,8 @@ jobs:
           xcodebuild clean build analyze \
             -scheme "$SCHEME" \
             -"$FILETYPE_PARAMETER" "$FILE_TO_BUILD" \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS=NO \
             | xcpretty
 
           # Capture the exit code from xcodebuild
