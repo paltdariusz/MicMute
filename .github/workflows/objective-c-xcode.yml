@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build and Analyze Default Scheme
+    name: Build and Analyze
     runs-on: macos-latest
 
     steps:
@@ -33,29 +33,25 @@ jobs:
       - name: Build
         env:
           SCHEME: ${{ steps.set_scheme.outputs.scheme }}
+          PROJECT_PATH: MicMuteApp.xcodeproj
         run: |
+          set -e
+
           if [ -z "$SCHEME" ]; then
             echo "Scheme is not set"
             exit 1
           fi
 
-          # Find .xcworkspace or .xcodeproj
-          if ls *.xcworkspace 1> /dev/null 2>&1; then
-            FILETYPE_PARAMETER="workspace"
-            FILE_TO_BUILD=$(ls *.xcworkspace | head -n 1)
-          elif ls *.xcodeproj 1> /dev/null 2>&1; then
-            FILETYPE_PARAMETER="project"
-            FILE_TO_BUILD=$(ls *.xcodeproj | head -n 1)
-          else
-            echo "No Xcode project or workspace found."
+          if [ ! -d "$PROJECT_PATH" ]; then
+            echo "Project path $PROJECT_PATH does not exist"
             exit 1
           fi
 
-          echo "Building $FILE_TO_BUILD with scheme $SCHEME"
+          echo "Building $PROJECT_PATH with scheme $SCHEME"
 
           xcodebuild clean build analyze \
             -scheme "$SCHEME" \
-            -"$FILETYPE_PARAMETER" "$FILE_TO_BUILD" \
+            -project "$PROJECT_PATH" \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS=NO \
             | xcpretty
