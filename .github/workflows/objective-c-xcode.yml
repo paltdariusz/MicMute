@@ -19,7 +19,11 @@ jobs:
         id: set_scheme
         run: |
           scheme_list=$(xcodebuild -list -json)
-          default=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.read)['project']['targets'][0]")
+          default=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.read)['project']['schemes'][0]")
+          if [ -z "$default" ]; then
+            echo "No schemes found."
+            exit 1
+          fi
           echo "Using default scheme: $default"
           echo "scheme=$default" >> $GITHUB_OUTPUT
 
@@ -35,12 +39,16 @@ jobs:
             exit 1
           fi
 
-          if ls *.xcworkspace 1> /dev/null 2>&1; then
+          # Find .xcworkspace or .xcodeproj
+          if [ -d *.xcworkspace ]; then
             FILETYPE_PARAMETER="workspace"
-            FILE_TO_BUILD=$(ls *.xcworkspace | head -n 1)
-          else
+            FILE_TO_BUILD=$(find . -maxdepth 3 -type d -name "*.xcworkspace" | head -n 1)
+          elif [ -d *.xcodeproj ]; then
             FILETYPE_PARAMETER="project"
-            FILE_TO_BUILD=$(ls *.xcodeproj | head -n 1)
+            FILE_TO_BUILD=$(find . -maxdepth 3 -type d -name "*.xcodeproj" | head -n 1)
+          else
+            echo "No Xcode project or workspace found."
+            exit 1
           fi
 
           echo "Building $FILE_TO_BUILD with scheme $SCHEME"
