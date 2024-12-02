@@ -1,0 +1,59 @@
+name: Xcode - Build and Analyze
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Build and Analyze Default Scheme
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Default Scheme
+        id: set_scheme
+        run: |
+          scheme_list=$(xcodebuild -list -json)
+          default=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.read)['project']['targets'][0]")
+          echo "Using default scheme: $default"
+          echo "scheme=$default" >> $GITHUB_OUTPUT
+
+      - name: Install xcpretty
+        run: sudo gem install xcpretty
+
+      - name: Build
+        env:
+          SCHEME: ${{ steps.set_scheme.outputs.scheme }}
+        run: |
+          if [ -z "$SCHEME" ]; then
+            echo "Scheme is not set"
+            exit 1
+          fi
+
+          if ls *.xcworkspace 1> /dev/null 2>&1; then
+            FILETYPE_PARAMETER="workspace"
+            FILE_TO_BUILD=$(ls *.xcworkspace | head -n 1)
+          else
+            FILETYPE_PARAMETER="project"
+            FILE_TO_BUILD=$(ls *.xcodeproj | head -n 1)
+          fi
+
+          echo "Building $FILE_TO_BUILD with scheme $SCHEME"
+
+          xcodebuild clean build analyze \
+            -scheme "$SCHEME" \
+            -"$FILETYPE_PARAMETER" "$FILE_TO_BUILD" \
+            | xcpretty
+
+          # Capture the exit code from xcodebuild
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "Build failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
